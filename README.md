@@ -18,14 +18,6 @@ To create a playground, send a POST request to `/playgrounds`. Optionally, you c
 ### Create Playground
 - **Endpoint**: `/playgrounds`
 - **Method**: POST
-```json
-{
-  "id": "string",
-  "articles": [],
-  "createdAt": "string",
-  "usedAt": "string",
-}
-```
 
 ### Create Playground with Data
 - **Endpoint**: `/playgrounds?populated`
