@@ -2,7 +2,7 @@
 
 ## Project Definition
 
-The JSON Playground API provides a platform to interact with JSON data and test JSON parsing libraries. It generates unique playgrounds that can be utilized for experimentation purposes.
+The JSON Playground API provides a few endpoints to play around with JSON data via HTTP requests.
 
 ## Playground Creation
 
