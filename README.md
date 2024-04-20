@@ -45,7 +45,6 @@ To create a playground, send a POST request to `/playgrounds`. Optionally, you c
 ```json
 {
   "id": "string",
-  "articles": [],
   "createdAt": "string",
   "usedAt": "string",
 }
