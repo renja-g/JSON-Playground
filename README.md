@@ -57,6 +57,7 @@ To create a playground, send a POST request to `/playgrounds`. Optionally, you c
   "id": "string",
   "title": "string",
   "content": "string",
+  "refPlayground": "string",
 }
 ```
 
@@ -65,5 +66,33 @@ To create a playground, send a POST request to `/playgrounds`. Optionally, you c
 {
   "id": "string",
   "content": "string",
+  "refArticle": "string",
+}
+```
+
+
+### Full example
+```json
+{
+  "playground": {
+    "id": "string",
+    "articles": [
+      {
+        "id": "string",
+        "title": "string",
+        "content": "string",
+        "refPlayground": "string",
+        "comments": [
+          {
+            "id": "string",
+            "content": "string",
+            "refArticle": "string",
+          }
+        ]
+      }
+    ],
+    "createdAt": "string",
+    "usedAt": "string",
+  }
 }
 ```
