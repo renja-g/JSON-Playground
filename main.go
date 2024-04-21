@@ -296,6 +296,55 @@ func getPlaygroundComment(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, comment)
 }
 
+func createPlaygroundArticle(c *gin.Context) {
+	playgroundID := c.Param("id")
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	var article Article
+	err = c.BindJSON(&article)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Invalid request", "error": err.Error()})
+		return
+	}
+
+	result, err := playgroundDB.Exec("INSERT INTO Articles (Title, Content) VALUES (?, ?)", article.Title, article.Content)
+	handleError(c, err, http.StatusInternalServerError, "Failed to insert article")
+
+	id, err := result.LastInsertId()
+	handleError(c, err, http.StatusInternalServerError, "Failed to get last insert ID")
+
+	article.Id = fmt.Sprintf("%d", id)
+	c.IndentedJSON(http.StatusCreated, article)
+}
+
+func createPlaygroundArticleComment(c *gin.Context) {
+	playgroundID := c.Param("id")
+	articleID := c.Param("articleID")
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	var comment Comment
+	err = c.BindJSON(&comment)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Invalid request", "error": err.Error()})
+		return
+	}
+
+
+	result, err := playgroundDB.Exec("INSERT INTO Comments (Content, ArticleId) VALUES (?, ?)", comment.Content, articleID)
+	handleError(c, err, http.StatusInternalServerError, "Failed to insert comment")
+
+	id, err := result.LastInsertId()
+	handleError(c, err, http.StatusInternalServerError, "Failed to get last insert ID")
+
+	comment.ID = fmt.Sprintf("%d", id)
+	comment.ArticleId = articleID
+	c.IndentedJSON(http.StatusCreated, comment)
+}
+
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -338,6 +387,8 @@ func authMiddleware() gin.HandlerFunc {
 }
 
 
+
+
 /*
 POST /playgrounds
 create a new sqlite database in /playgrounds directory
@@ -366,8 +417,8 @@ func main() {
 	playgrounds.GET("/articles/:articleID/comments/:commentID", getPlaygroundArticleComment)
 	playgrounds.GET("/comments/:commentID", getPlaygroundComment)
 
-	// router.POST("/playgrounds/:playgroundID/articles", createPlaygroundArticle)
-	// router.POST("/playgrounds/:playgroundID/articles/:articleID/comments", createPlaygroundArticleComment)
+	playgrounds.POST("/articles", createPlaygroundArticle)
+	playgrounds.POST("/articles/:articleID/comments", createPlaygroundArticleComment)
 
 	// router.PUT("/playgrounds/:playgroundID/articles/:articleID", updatePlaygroundArticle)
 	// router.PUT("/playgrounds/:playgroundID/articles/:articleID/comments/:commentID", updatePlaygroundArticleComment)
