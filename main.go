@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -142,8 +143,16 @@ func createPlayground(c *gin.Context) {
 	}
 	defer playgroundDB.Close()
 
+	expiration := time.Now().Add(time.Minute * 30).Unix()
+
 	_, err = playgroundDB.Exec(`
 	BEGIN TRANSACTION;
+	CREATE TABLE IF NOT EXISTS "Info" (
+		"Id"	INTEGER,
+		"Expiration"	INTEGER NOT NULL,
+		PRIMARY KEY("Id" AUTOINCREMENT)
+	);
+	INSERT INTO "Info" (Expiration) VALUES (?);
 	CREATE TABLE IF NOT EXISTS "Articles" (
 		"Id"	INTEGER,
 		"Title"	TEXT NOT NULL,
@@ -157,7 +166,7 @@ func createPlayground(c *gin.Context) {
 		PRIMARY KEY("Id" AUTOINCREMENT)
 	);
 	COMMIT;
-	`)
+	`, expiration)
 	if err != nil {
 		handleError(c, err, http.StatusInternalServerError, "Failed to create test table")
 		return
@@ -167,7 +176,7 @@ func createPlayground(c *gin.Context) {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["id"] = id
-	claims["exp"] = time.Now().Add(time.Minute * 30).Unix()
+	claims["exp"] = expiration
 
 	tokenString, err := token.SignedString([]byte("secret"))
 	if err != nil {
@@ -457,16 +466,52 @@ func authMiddleware() gin.HandlerFunc {
 	}
 }
 
+func deleteExpiredPlaygrounds() {
+	files, err := os.ReadDir("./playgrounds")
+	if err != nil {
+		fmt.Println("Failed to read playgrounds directory:", err)
+		return
+	}
 
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
 
+		db, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s", file.Name()))
+		if err != nil {
+			fmt.Println("Failed to open playground database:", err)
+			continue
+		}
+		defer db.Close()
 
-/*
-POST /playgrounds
-create a new sqlite database in /playgrounds directory
-create a jwt token for the playground
-*/
+		row := db.QueryRow("SELECT Expiration FROM Info")
+		var expiration int64
+		err = row.Scan(&expiration)
+		if err != nil {
+			fmt.Println("Failed to fetch expiration:", err)
+			continue
+		}
+
+		if time.Now().Unix() > expiration {
+			err = os.Remove(fmt.Sprintf("./playgrounds/%s", file.Name()))
+			if err != nil {
+				fmt.Println("Failed to delete playground:", err)
+			}
+			log.Printf("Deleted expired playground: %s", file.Name())
+		}
+	}
+}
+
 
 func main() {
+	// Run the cleanup task in the background
+	go func() {
+		for {
+			deleteExpiredPlaygrounds()
+			time.Sleep(time.Minute) // Adjust the interval as needed
+		}
+	}()
 	router := gin.Default()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
