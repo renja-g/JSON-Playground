@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -102,7 +103,8 @@ func getComments(c *gin.Context) {
 
 func getComment(c *gin.Context) {
 	commentID := c.Param("commentID")
-	row := db.QueryRow("SELECT Id, Content, ArticleId FROM Comments WHERE Id = ?", commentID)
+	articleID := c.Param("articleID")
+	row := db.QueryRow("SELECT Id, Content, ArticleId FROM Comments WHERE Id = ? AND ArticleId = ?", commentID, articleID)
 
 	var comment Comment
 	err := row.Scan(&comment.ID, &comment.Content, &comment.ArticleId)
@@ -177,6 +179,165 @@ func createPlayground(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, playground)
 }
 
+func getPlaygroundArticles(c *gin.Context) {
+	playgroundID := c.Param("id")
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	rows, err := playgroundDB.Query("SELECT Id, Title, Content FROM Articles")
+	handleError(c, err, http.StatusInternalServerError, "Failed to fetch articles")
+	defer rows.Close()
+
+	articles := make([]Article, 0)
+	for rows.Next() {
+		var article Article
+		err := rows.Scan(&article.Id, &article.Title, &article.Content)
+		handleError(c, err, http.StatusInternalServerError, "Failed to scan articles")
+		articles = append(articles, article)
+	}
+
+	c.IndentedJSON(http.StatusOK, articles)
+}
+
+func getPlaygroundArticle(c *gin.Context) {
+	playgroundID := c.Param("id")
+	articleID := c.Param("articleID")
+
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	row := playgroundDB.QueryRow("SELECT Id, Title, Content FROM Articles WHERE Id = ?", articleID)
+
+	var article Article
+	err = row.Scan(&article.Id, &article.Title, &article.Content)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Article not found"})
+		} else {
+			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Failed to fetch article", "error": err.Error()})
+		}
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, article)
+}
+
+func getPlaygroundArticleComments(c *gin.Context) {
+	playgroundID := c.Param("id")
+	articleID := c.Param("articleID")
+
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	rows, err := playgroundDB.Query("SELECT Id, Content, ArticleId FROM Comments WHERE ArticleId = ?", articleID)
+	handleError(c, err, http.StatusInternalServerError, "Failed to fetch comments")
+	defer rows.Close()
+
+	comments := make([]Comment, 0)
+	for rows.Next() {
+		var comment Comment
+		err := rows.Scan(&comment.ID, &comment.Content, &comment.ArticleId)
+		handleError(c, err, http.StatusInternalServerError, "Failed to scan comments")
+		comments = append(comments, comment)
+	}
+
+	c.IndentedJSON(http.StatusOK, comments)
+}
+
+func getPlaygroundArticleComment(c *gin.Context) {
+	playgroundID := c.Param("id")
+	commentID := c.Param("commentID")
+	articleID := c.Param("articleID")
+
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	row := playgroundDB.QueryRow("SELECT Id, Content, ArticleId FROM Comments WHERE Id = ? AND ArticleId = ?", commentID, articleID)
+
+	var comment Comment
+	err = row.Scan(&comment.ID, &comment.Content, &comment.ArticleId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Comment not found"})
+		} else {
+			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Failed to fetch comment", "error": err.Error()})
+		}
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, comment)
+}
+
+func getPlaygroundComment(c *gin.Context) {
+	playgroundID := c.Param("id")
+	commentID := c.Param("commentID")
+
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	row := playgroundDB.QueryRow("SELECT Id, Content, ArticleId FROM Comments WHERE Id = ?", commentID)
+
+	var comment Comment
+	err = row.Scan(&comment.ID, &comment.Content, &comment.ArticleId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Comment not found"})
+		} else {
+			c.IndentedJSON(http.StatusInternalServerError, gin.H{"message": "Failed to fetch comment", "error": err.Error()})
+		}
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, comment)
+}
+
+
+func authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString := c.GetHeader("Authorization")
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is missing"})
+			c.Abort()
+			return
+		}
+
+		tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
+
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			return []byte("secret"), nil // Use the same secret key used to generate the token
+		})
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			c.Abort()
+			return
+		}
+
+		// Check if the ID in the token matches the ID in the URL
+		id := c.Param("id")
+		tokenID, ok := claims["id"].(string)
+		if !ok || tokenID != id {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token does not match ID"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+
 /*
 POST /playgrounds
 create a new sqlite database in /playgrounds directory
@@ -185,6 +346,9 @@ create a jwt token for the playground
 
 func main() {
 	router := gin.Default()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+
 	router.GET("/articles", getArticles)
 	router.GET("/articles/:articleID", getArticle)
 
@@ -192,11 +356,15 @@ func main() {
 	router.GET("/articles/:articleID/comments/:commentID", getComment)
 
 	router.POST("/playgrounds", createPlayground)
-	// router.GET("/playgrounds/:playgroundID/articles", getPlaygroundArticles)
-	// router.GET("/playgrounds/:playgroundID/articles/:articleID", getPlaygroundArticle)
 
-	// router.GET("/playgrounds/:playgroundID/articles/:articleID/comments", getPlaygroundArticleComments)
-	// router.GET("/playgrounds/:playgroundID/articles/:articleID/comments/:commentID", getPlaygroundArticleComment)
+	playgrounds := router.Group("/playgrounds/:id")
+	playgrounds.Use(authMiddleware())
+	playgrounds.GET("/articles", getPlaygroundArticles)
+	playgrounds.GET("/articles/:articleID", getPlaygroundArticle)
+
+	playgrounds.GET("/articles/:articleID/comments", getPlaygroundArticleComments)
+	playgrounds.GET("/articles/:articleID/comments/:commentID", getPlaygroundArticleComment)
+	playgrounds.GET("/comments/:commentID", getPlaygroundComment)
 
 	// router.POST("/playgrounds/:playgroundID/articles", createPlaygroundArticle)
 	// router.POST("/playgrounds/:playgroundID/articles/:articleID/comments", createPlaygroundArticleComment)
