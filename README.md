@@ -2,96 +2,34 @@
 
 ## Project Definition
 
-The JSON Playground API provides a few endpoints to play around with JSON data via HTTP requests.
+The JSON Playground provides a mock REST API to play around with JSON data.
 
 ## Playground Creation
 
-To create a playground, send a POST request to `/playgrounds`. Optionally, you can create a playground with pre-populated data by sending a POST request to `/playgrounds?populated`.
-
-- Playground creation includes:
-  - Automatic deletion after 5 minutes of inactivity or 30 minutes after creation.
-  - Saving each playground as a JSON file in the `playgrounds` directory.
-  - Return of a JWT token required for playground access.
+To create a playground, send a POST request to `/playgrounds`.
+- Automatic deletion after 30 minutes.
+- Create an own SQLite database for the playground.
+- Return the playground ID and a JWT that will be needed to interact with the playground.
 
 ## Endpoints
 
-### Create Playground
-- **Endpoint**: `/playgrounds`
-- **Method**: POST
+### Open Endpoints
 
-### Create Playground with Data
-- **Endpoint**: `/playgrounds?populated`
-- **Method**: POST
+| Method | Endpoints                                    |
+| ------ | -------------------------------------------- |
+| GET    | `/articles`                                  |
+| GET    | `/articles/{articleId}`                      |
+| GET    | `/articles/{articleId}/comments`             |
+| GET    | `/articles/{articleId}/comments/{commentID}` |
+| POST   | `/playgrounds`                               |
 
-### Playground Articles
-- **Endpoint**: `/{playgroundId}/articles`
-- **Methods**: GET, POST
+### Playground Endpoints
+> All endpoints require a valid JWT.
 
-### Specific Article
-- **Endpoint**: `/{playgroundId}/articles/{article_id}`
-- **Methods**: GET, PUT, PATCH, DELETE
-
-### Article Comments
-- **Endpoint**: `/{playgroundId}/articles/{article_id}/comments`
-- **Methods**: GET, POST
-
-### Specific Comment
-- **Endpoint**: `/{playgroundId}/articles/{article_id}/comments/{comment_id}`
-- **Methods**: GET, PUT, PATCH, DELETE
-
-## Schemas
-
-### Playground
-```json
-{
-  "id": "string",
-  "createdAt": "string",
-  "usedAt": "string",
-}
-```
-
-### Article
-```json
-{
-  "id": "string",
-  "title": "string",
-  "content": "string",
-  "refPlayground": "string",
-}
-```
-
-### Comment
-```json
-{
-  "id": "string",
-  "content": "string",
-  "refArticle": "string",
-}
-```
-
-
-### Full example
-```json
-{
-  "playground": {
-    "id": "string",
-    "articles": [
-      {
-        "id": "string",
-        "title": "string",
-        "content": "string",
-        "refPlayground": "string",
-        "comments": [
-          {
-            "id": "string",
-            "content": "string",
-            "refArticle": "string",
-          }
-        ]
-      }
-    ],
-    "createdAt": "string",
-    "usedAt": "string",
-  }
-}
-```
+| Method         | Endpoints                                                               |
+| -------------- | ----------------------------------------------------------------------- |
+| GET/POST       | `/playgrounds/{playgroundId}/articles`                                  |
+| GET/PUT/DELETE | `/playgrounds/{playgroundId}/articles/{articleId}`                      |
+| GET/POST       | `/playgrounds/{playgroundId}/articles/{articleId}/comments`             |
+| GET/PUT/DELETE | `/playgrounds/{playgroundId}/articles/{articleId}/comments/{commentID}` |
+| GET            | `/playgrounds/{playgroundId}/comments/{commentID}`                      |
