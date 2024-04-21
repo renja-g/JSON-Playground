@@ -2,9 +2,14 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -20,6 +25,11 @@ type Comment struct {
 	ID        string `json:"id"`
 	Content   string `json:"content"`
 	ArticleId string `json:"articleId"`
+}
+
+type Playground struct {
+	Id    string `json:"id"`
+	Token string `json:"token"`
 }
 
 var db *sql.DB
@@ -108,6 +118,71 @@ func getComment(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, comment)
 }
 
+func createPlayground(c *gin.Context) {
+	// Generate unique ID for the playground
+	id := uuid.New().String()
+
+	// Create directory if it doesn't exist
+	dir := "./playgrounds"
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err := os.Mkdir(dir, 0755)
+		if err != nil {
+			handleError(c, err, http.StatusInternalServerError, "Failed to create directory")
+			return
+		}
+	}
+
+	// Create SQLite database for the playground
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", id))
+	if err != nil {
+		handleError(c, err, http.StatusInternalServerError, "Failed to create playground database")
+		return
+	}
+	defer playgroundDB.Close()
+
+	_, err = playgroundDB.Exec(`
+	BEGIN TRANSACTION;
+	CREATE TABLE IF NOT EXISTS "Articles" (
+		"Id"	INTEGER,
+		"Title"	TEXT NOT NULL,
+		"Content"	TEXT NOT NULL,
+		PRIMARY KEY("Id" AUTOINCREMENT)
+	);
+	CREATE TABLE IF NOT EXISTS "Comments" (
+		"Id"	INTEGER,
+		"Content"	TEXT NOT NULL,
+		"ArticleId"	INTEGER NOT NULL,
+		PRIMARY KEY("Id" AUTOINCREMENT)
+	);
+	COMMIT;
+	`)
+	if err != nil {
+		handleError(c, err, http.StatusInternalServerError, "Failed to create test table")
+		return
+	}
+
+	// Generate JWT token for the playground
+	token := jwt.New(jwt.SigningMethodHS256)
+	claims := token.Claims.(jwt.MapClaims)
+	claims["id"] = id
+	claims["exp"] = time.Now().Add(time.Minute * 30).Unix()
+
+	tokenString, err := token.SignedString([]byte("secret"))
+	if err != nil {
+		handleError(c, err, http.StatusInternalServerError, "Failed to generate token")
+		return
+	}
+
+	playground := Playground{Id: id, Token: tokenString}
+	c.IndentedJSON(http.StatusCreated, playground)
+}
+
+/*
+POST /playgrounds
+create a new sqlite database in /playgrounds directory
+create a jwt token for the playground
+*/
+
 func main() {
 	router := gin.Default()
 	router.GET("/articles", getArticles)
@@ -116,7 +191,7 @@ func main() {
 	router.GET("/articles/:articleID/comments", getComments)
 	router.GET("/articles/:articleID/comments/:commentID", getComment)
 
-	// router.POST("/playgrounds", createPlayground)
+	router.POST("/playgrounds", createPlayground)
 	// router.GET("/playgrounds/:playgroundID/articles", getPlaygroundArticles)
 	// router.GET("/playgrounds/:playgroundID/articles/:articleID", getPlaygroundArticle)
 
