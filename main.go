@@ -345,6 +345,77 @@ func createPlaygroundArticleComment(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, comment)
 }
 
+func updatePlaygroundArticle(c *gin.Context) {
+	playgroundID := c.Param("id")
+	articleID := c.Param("articleID")
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	var article Article
+	err = c.BindJSON(&article)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Invalid request", "error": err.Error()})
+		return
+	}
+
+	_, err = playgroundDB.Exec("UPDATE Articles SET Title = ?, Content = ? WHERE Id = ?", article.Title, article.Content, articleID)
+	handleError(c, err, http.StatusInternalServerError, "Failed to update article")
+
+	article.Id = articleID
+	c.IndentedJSON(http.StatusOK, article)
+}
+
+func updatePlaygroundArticleComment(c *gin.Context) {
+	playgroundID := c.Param("id")
+	articleID := c.Param("articleID")
+	commentID := c.Param("commentID")
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	var comment Comment
+	err = c.BindJSON(&comment)
+	if err != nil {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Invalid request", "error": err.Error()})
+		return
+	}
+
+	_, err = playgroundDB.Exec("UPDATE Comments SET Content = ? WHERE Id = ? AND ArticleId = ?", comment.Content, commentID, articleID)
+	handleError(c, err, http.StatusInternalServerError, "Failed to update comment")
+
+	comment.ID = commentID
+	comment.ArticleId = articleID
+	c.IndentedJSON(http.StatusOK, comment)
+}
+
+func deletePlaygroundArticle(c *gin.Context) {
+	playgroundID := c.Param("id")
+	articleID := c.Param("articleID")
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	_, err = playgroundDB.Exec("DELETE FROM Articles WHERE Id = ?", articleID)
+	handleError(c, err, http.StatusInternalServerError, "Failed to delete article")
+
+	c.IndentedJSON(http.StatusNoContent, gin.H{})
+}
+
+func deletePlaygroundArticleComment(c *gin.Context) {
+	playgroundID := c.Param("id")
+	articleID := c.Param("articleID")
+	commentID := c.Param("commentID")
+	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", playgroundID))
+	handleError(c, err, http.StatusInternalServerError, "Failed to open playground database")
+	defer playgroundDB.Close()
+
+	_, err = playgroundDB.Exec("DELETE FROM Comments WHERE Id = ? AND ArticleId = ?", commentID, articleID)
+	handleError(c, err, http.StatusInternalServerError, "Failed to delete comment")
+
+	c.IndentedJSON(http.StatusNoContent, gin.H{})
+}
+
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -420,11 +491,11 @@ func main() {
 	playgrounds.POST("/articles", createPlaygroundArticle)
 	playgrounds.POST("/articles/:articleID/comments", createPlaygroundArticleComment)
 
-	// router.PUT("/playgrounds/:playgroundID/articles/:articleID", updatePlaygroundArticle)
-	// router.PUT("/playgrounds/:playgroundID/articles/:articleID/comments/:commentID", updatePlaygroundArticleComment)
+	playgrounds.PUT("/articles/:articleID", updatePlaygroundArticle)
+	playgrounds.PUT("/articles/:articleID/comments/:commentID", updatePlaygroundArticleComment)
 
-	// router.DELETE("/playgrounds/:playgroundID/articles/:articleID", deletePlaygroundArticle)
-	// router.DELETE("/playgrounds/:playgroundID/articles/:articleID/comments/:commentID", deletePlaygroundArticleComment)
+	playgrounds.DELETE("/articles/:articleID", deletePlaygroundArticle)
+	playgrounds.DELETE("/articles/:articleID/comments/:commentID", deletePlaygroundArticleComment)
 
 	router.Run("localhost:8080")
 }
