@@ -33,3 +33,25 @@ To create a playground, send a POST request to `/playgrounds`.
 | GET/POST       | `/playgrounds/{playgroundId}/articles/{articleId}/comments`             |
 | GET/PUT/DELETE | `/playgrounds/{playgroundId}/articles/{articleId}/comments/{commentID}` |
 | GET            | `/playgrounds/{playgroundId}/comments/{commentID}`                      |
+
+## Data Structure
+
+### Article
+
+```json
+{
+  "id": 1,
+  "title": "JSON Playground API",
+  "content": "The JSON Playground provides a mock REST API to play around with JSON data.",
+}
+```
+
+### Comment
+
+```json
+{
+  "id": 1,
+  "articleId": 1,
+  "content": "Great API!",
+}
+```
