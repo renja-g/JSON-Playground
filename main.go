@@ -15,14 +15,12 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// Article struct
 type Article struct {
 	Id      string `json:"id"`
 	Title   string `json:"title"`
 	Content string `json:"content"`
 }
 
-// Comment struct
 type Comment struct {
 	ID        string `json:"id"`
 	Content   string `json:"content"`
@@ -35,6 +33,8 @@ type Playground struct {
 }
 
 var db *sql.DB
+
+var secret = "secret"
 
 func init() {
 	var err error
@@ -122,10 +122,8 @@ func getComment(c *gin.Context) {
 }
 
 func createPlayground(c *gin.Context) {
-	// Generate unique ID for the playground
 	id := uuid.New().String()
 
-	// Create directory if it doesn't exist
 	dir := "./playgrounds"
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err := os.Mkdir(dir, 0755)
@@ -135,7 +133,6 @@ func createPlayground(c *gin.Context) {
 		}
 	}
 
-	// Create SQLite database for the playground
 	playgroundDB, err := sql.Open("sqlite3", fmt.Sprintf("./playgrounds/%s.db", id))
 	if err != nil {
 		handleError(c, err, http.StatusInternalServerError, "Failed to create playground database")
@@ -172,13 +169,12 @@ func createPlayground(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT token for the playground
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["id"] = id
 	claims["exp"] = expiration
 
-	tokenString, err := token.SignedString([]byte("secret"))
+	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
 		handleError(c, err, http.StatusInternalServerError, "Failed to generate token")
 		return
@@ -342,7 +338,6 @@ func createPlaygroundArticleComment(c *gin.Context) {
 		return
 	}
 
-
 	result, err := playgroundDB.Exec("INSERT INTO Comments (Content, ArticleId) VALUES (?, ?)", comment.Content, articleID)
 	handleError(c, err, http.StatusInternalServerError, "Failed to insert comment")
 
@@ -425,7 +420,6 @@ func deletePlaygroundArticleComment(c *gin.Context) {
 	c.IndentedJSON(http.StatusNoContent, gin.H{})
 }
 
-
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := c.GetHeader("Authorization")
@@ -438,7 +432,7 @@ func authMiddleware() gin.HandlerFunc {
 		tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte("secret"), nil // Use the same secret key used to generate the token
+			return []byte(secret), nil // Use the same secret key used to generate the token
 		})
 		if err != nil || !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
@@ -503,15 +497,18 @@ func deleteExpiredPlaygrounds() {
 	}
 }
 
-
 func main() {
-	// Run the cleanup task in the background
 	go func() {
 		for {
 			deleteExpiredPlaygrounds()
-			time.Sleep(time.Minute) // Adjust the interval as needed
+			time.Sleep(time.Minute)
 		}
 	}()
+	router := setupRouter()
+	router.Run("localhost:8080")
+}
+
+func setupRouter() *gin.Engine {
 	router := gin.Default()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
@@ -542,5 +539,5 @@ func main() {
 	playgrounds.DELETE("/articles/:articleID", deletePlaygroundArticle)
 	playgrounds.DELETE("/articles/:articleID/comments/:commentID", deletePlaygroundArticleComment)
 
-	router.Run("localhost:8080")
+	return router
 }
